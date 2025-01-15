@@ -11,6 +11,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/argoproj/argo-cd/v2/pkg/apiclient"
 	"github.com/argoproj/argo-cd/v2/pkg/apiclient/application"
 	"github.com/argoproj/argo-cd/v2/pkg/apiclient/project"
 	"github.com/argoproj/argo-cd/v2/pkg/apiclient/settings"
@@ -23,6 +24,43 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
+
+func TestFindRelevantAppSetByPathDoesNotExplode(t *testing.T) {
+	t.Parallel()
+
+	serverAddr := os.Getenv("ARGOCD_SERVER_ADDR")
+	authToken := os.Getenv("ARGOCD_TOKEN")
+
+	if serverAddr == "" || authToken == "" {
+		t.Skipf("Set ARGOCD_SERVER_ADDR and ARGOCD_TOKEN to run test")
+	}
+
+	componentPath, repo := "clusters/playground/aws/eu-central-1/v1/cloud-tools/humio/logscale-daily-usage-reporter", "commercetools/k8s-gitops"
+
+	opts := apiclient.ClientOptions{
+		ServerAddr: serverAddr,
+		AuthToken:  authToken,
+		PlainText:  false,
+		Insecure:   true,
+	}
+	c, err := apiclient.NewClient(&opts)
+	if err != nil {
+		t.Errorf("NewClient: %v", err)
+	}
+	_, ac, err := c.NewApplicationSetClient()
+	if err != nil {
+		t.Errorf("NewApplicationClient: %v", err)
+	}
+
+	if _, err := findRelevantAppSetByPath(
+		context.Background(),
+		componentPath,
+		repo,
+		ac,
+	); err != nil {
+		t.Errorf("got unexpected error")
+	}
+}
 
 func readLiveTarget(t *testing.T) (live, target *unstructured.Unstructured, expected string) {
 	t.Helper()
